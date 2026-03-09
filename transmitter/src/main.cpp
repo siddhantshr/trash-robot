@@ -1,66 +1,93 @@
+// ============================================================
+// MS101 Makespace – EE Project
+// TRANSMITTER (Tx) – Dual Joystick, Arduino Nano
+// UART Wired Transmitter → ESP32 Receiver
+// ============================================================
+
 #include <Arduino.h>
 
-#define VRx1 A7
-#define VRy1 A6
-#define VRx2 A1
-#define VRy2 A0
-#define SW1 12
-#define SW2 11
+// ---------- Pin Definitions ----------
+int VRx1 = A7;
+int VRy1 = A6;
+int VRx2 = A1;
+int VRy2 = A0;
 
+int SW1 = 12;
+int SW2 = 11;
+
+int LED = 2;
+
+// ---------- Config ----------
+const int BAUD_RATE = 9600;
+const int DEAD_ZONE = 10;
+const int TX_INTERVAL_MS = 20;
+
+// ---------- Helpers ----------
+// Returns -255 (full left/down) to 0 (centre) to +255 (full right/up)
+int mapJoystick(int raw) {
+const int centre = 512;
+if (abs(raw - centre) < DEAD_ZONE) {
+return 0;
+}
+return map(raw, 0, 1023, -255, 255);
+}
+
+// ---------- Setup ----------
 void setup() {
-    Serial.begin(115200);
+  pinMode(SW1, INPUT_PULLUP);
+  pinMode(SW2, INPUT_PULLUP);
+  pinMode(LED, OUTPUT);
 
-    pinMode(SW1, INPUT_PULLUP);
-    pinMode(SW2, INPUT_PULLUP);
+  Serial.begin(BAUD_RATE);
+
+  // Blink LED to indicate power-on / ready
+  for (int i = 0; i < 3; i++) {
+  digitalWrite(LED, HIGH); delay(150);
+  digitalWrite(LED, LOW); delay(150);
+  }
 }
 
-int convert(int v) {
-    int mid = 512;
-
-    if (v > mid + 30)
-      return map(v, mid + 30, 1023, 0, 255);
-
-    if (v < mid - 30)
-      return map(v, mid - 30, 0, 0, -255);
-
-    return 0;
-}
-
+// ---------- Main Loop ----------
 void loop() {
-    int rawX1 = analogRead(VRx1);
-    int rawY1 = analogRead(VRy1);
-    int rawX2 = analogRead(VRx2);
-    int rawY2 = analogRead(VRy2);
-    
+  static unsigned long lastTx = 0;
+  unsigned long now = millis();
 
-    int turn = convert(rawX1);
-    int forward = convert(rawY1);
+  if (now - lastTx >= TX_INTERVAL_MS) {
+  lastTx = now;
 
-    int func1 = convert(rawX2);
-    int func2 = convert(rawY2);
+  int jVRx1 = mapJoystick(analogRead(VRx1));
+  int jVRy1 = mapJoystick(analogRead(VRy1));
+  int jVRx2 = mapJoystick(analogRead(VRx2));
+  int jVRy2 = mapJoystick(analogRead(VRy2));
 
-    int leftSpeed = forward + turn;
-    int rightSpeed = forward - turn;
+  // Differential-drive mix: left joystick → L/R motor speeds
+  int L = constrain(jVRy1 + jVRx1, -255, 255);
+  int R = constrain(jVRy1 - jVRx1, -255, 255);
 
-    leftSpeed = constrain(leftSpeed, -255, 255);
-    rightSpeed = constrain(rightSpeed, -255, 255);
+  // Right joystick → function axes
+  int F1 = jVRx2;
+  int F2 = jVRy2;
 
-    int s1 = !digitalRead(SW1);
-    int s2 = !digitalRead(SW2);
+  // Switch states (active-low)
+  int S1 = (digitalRead(SW1) == LOW) ? 1 : 0;
+  int S2 = (digitalRead(SW2) == LOW) ? 1 : 0;
 
-    Serial.print("<");
-    Serial.print(leftSpeed);
-    Serial.print(",");
-    Serial.print(rightSpeed);
-    Serial.print(",");
-    Serial.print(func1);
-    Serial.print(",");
-    Serial.print(func2);
-    Serial.print(",");
-    Serial.print(s1);
-    Serial.print(",");
-    Serial.print(s2);
-    Serial.println(">");
+  digitalWrite(LED, (S1 || S2) ? HIGH : LOW);
 
-    delay(50);
+  // Transmit framed ASCII packet: <L,R,F1,F2,S1,S2>\n
+  char buf[48];
+  int len = snprintf(buf, sizeof(buf), "<%d,%d,%d,%d,%d,%d>\n",
+  L, R, F1, F2, S1, S2);
+  Serial.println((uint8_t *)buf, len);
+
+  // // Transmit framed ASCII packet: <L,R,F1,F2,S1,S2>
+  // Serial.print("<");
+  // Serial.print(L); Serial.print(",");
+  // Serial.print(R); Serial.print(",");
+  // Serial.print(F1); Serial.print(",");
+  // Serial.print(F2); Serial.print(",");
+  // Serial.print(S1); Serial.print(",");
+  // Serial.print(S2);
+  // Serial.println(">");
+  }
 }
