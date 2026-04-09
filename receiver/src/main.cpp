@@ -147,7 +147,7 @@ void loop() {
 
             drive(leftSpeed, IN1, IN2, CH_A);
             drive(rightSpeed, IN3, IN4, CH_B);
-            drive(F1, IN5, IN6, CH_C);
+            drive(F1, IN5, IN6, CH_C);                                      
             setServoFromF2(F2);
 
             bufIndex = 0;
