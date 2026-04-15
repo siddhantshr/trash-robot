@@ -14,7 +14,7 @@
 #define SERVO_PIN 13
 
 // ---------- L298N Pins ----------
-#define ENA 12
+#define ENA 32
 #define IN1 14
 #define IN2 27
 
@@ -28,9 +28,9 @@
 #define IN6 5
 
 // ---------- PWM ----------
-#define CH_A 0
-#define CH_B 1
-#define CH_C 2
+#define CH_A 4
+#define CH_B 5
+#define CH_C 6
 #define PWM_FREQ 1000
 #define PWM_RES 8
 
@@ -121,7 +121,7 @@ void setup() {
     ledcAttachPin(ENC, CH_C);
 
     toolServo.setPeriodHertz(50);
-    toolServo.attach(SERVO_PIN, 500, 2400);
+    toolServo.attach(SERVO_PIN, 500, 2400); // 500 -> 0 degrees and 2400 -> 180 degrees, wider range to ensure full sweep
     setServoFromF2(0);
 }
 
@@ -154,7 +154,7 @@ void loop() {
         }
         else
         {
-            if (bufIndex < sizeof(buffer) - 1)
+            if (bufIndex < sizeof(buffer) - 1) // sizeof(buffer[0]) = 1 for char
                 buffer[bufIndex++] = c;
         }
     }
